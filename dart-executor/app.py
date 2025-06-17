@@ -10,13 +10,13 @@ def execute():
     data = request.get_json()
     code = data.get('code', '')
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as tmp_file:
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.dart', delete=False) as tmp_file:
         tmp_file.write(code)
         tmp_file_path = tmp_file.name
 
     try:
         result = subprocess.run(
-            ['python', tmp_file_path],
+            ['dart', tmp_file_path],
             capture_output=True,
             text=True,
             timeout=10
@@ -36,4 +36,4 @@ def execute():
     return jsonify(output)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001)
+    app.run(host='0.0.0.0', port=5003)

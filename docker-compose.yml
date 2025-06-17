@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  router:
+    build: ./router
+    ports:
+      - "5001:5000"
+    networks:
+      - code-net
+
+  python-executor:
+    build: ./python-executor
+    networks:
+      - code-net
+
+  java-executor:
+    build: ./java-executor
+    networks:
+      - code-net
+
+  dart-executor:
+    build: ./dart-executor
+    networks:
+      - code-net
+
+networks:
+  code-net:
+    driver: bridge
