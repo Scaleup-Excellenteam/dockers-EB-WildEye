@@ -1,13 +1,19 @@
-FROM openjdk:11-jre-slim
+FROM openjdk:11-jdk-slim
 
-# Install Python and Flask
+# Install Python and pip
 RUN apt-get update && \
     apt-get install -y python3 python3-pip && \
-    pip3 install Flask
+    rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Copy the Flask application
-COPY app.py /app/
-WORKDIR /app
+COPY app.py .
 
 # Expose the port and run the application
 EXPOSE 5002
