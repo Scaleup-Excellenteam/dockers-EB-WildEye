@@ -6,15 +6,21 @@ app = Flask(__name__)
 @app.route('/execute', methods=['POST'])
 def execute():
     payload = request.json or {}
-    if payload.get("lang") == "python":
-        # forward to python-executor
-        resp = requests.post(
-            "http://python-executor:5001/execute",
-            json={"code": payload.get("code", "")}
-        )
-        return jsonify(resp.json()), resp.status_code
+    lang = payload.get("lang")
+    code = payload.get("code", "")
 
-    return jsonify({"error": "unsupported language"}), 400
+    if lang == "python":
+        url = "http://python-executor:5001/execute"
+    elif lang == "java":
+        url = "http://java-executor:5002/execute"
+    elif lang == "dart":
+        url = "http://dart-executor:5003/execute"
+    else:
+        return jsonify({"error": "unsupported language"}), 400
+
+    # forward the code to the appropriate executor
+    resp = requests.post(url, json={"code": code})
+    return jsonify(resp.json()), resp.status_code
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
