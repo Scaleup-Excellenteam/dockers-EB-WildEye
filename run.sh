@@ -1,196 +1,188 @@
 #!/bin/bash
-# test_project.sh - Test script for Multi-Language Code Execution System (WSL-optimized)
 
-echo "🚀 Testing Multi-Language Code Execution System (WSL)"
-echo "===================================================="
-echo ""
-
-# Colors for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
+# Unicode symbols
+CHECK="✓"
+CROSS="✗"
+ROCKET="🚀"
+SNAKE="🐍"
+COFFEE="☕"
+DART="🎯"
+
 # Function to print colored output
-print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+print_header() {
+    echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${WHITE}                  DOCKER CODE EXECUTOR TEST                   ${CYAN}║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}\n"
+}
+
+print_separator() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+print_test_header() {
+    local lang=$1
+    local emoji=$2
+    echo -e "\n${PURPLE}┌─────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${PURPLE}│ ${emoji}  Testing ${WHITE}$lang${PURPLE} Executor                                   │${NC}"
+    echo -e "${PURPLE}└─────────────────────────────────────────────────────────────┘${NC}"
 }
 
 print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    echo -e "${GREEN}${CHECK} $1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}${CROSS} $1${NC}"
 }
 
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+print_info() {
+    echo -e "${YELLOW}➤ $1${NC}"
 }
 
-# WSL-specific checks
-print_status "Checking WSL environment..."
-
-# Check if Docker is available
-if ! command -v docker &> /dev/null; then
-    print_error "Docker command not found!"
-    echo "Please make sure Docker Desktop is installed and WSL integration is enabled."
-    echo "Go to Docker Desktop → Settings → Resources → WSL Integration"
-    exit 1
-fi
-
-# Check if docker-compose is available
-if ! command -v docker-compose &> /dev/null; then
-    print_error "docker-compose command not found!"
-    echo "Please install docker-compose in WSL or use 'docker compose' instead."
-    exit 1
-fi
-
-# Test Docker connectivity
-print_status "Testing Docker connectivity..."
-if ! docker info &> /dev/null; then
-    print_error "Cannot connect to Docker daemon!"
-    echo "Please make sure Docker Desktop is running and WSL integration is enabled."
-    exit 1
-fi
-
-print_success "Docker is accessible from WSL"
-
-# Stop any existing containers
-print_status "Stopping any existing containers..."
-docker-compose down > /dev/null 2>&1
-
-# Build and start containers
-print_status "Building and starting Docker containers..."
-echo "This might take a few minutes on first run..."
-docker-compose up --build -d
-
-if [ $? -ne 0 ]; then
-    print_error "Failed to start Docker containers!"
-    echo "Please check the error messages above."
-    echo "Common WSL issues:"
-    echo "  1. Make sure Docker Desktop is running"
-    echo "  2. Enable WSL integration in Docker Desktop settings"
-    echo "  3. Check if Windows firewall is blocking Docker"
-    exit 1
-fi
-
-# Wait for services to start
-print_status "Waiting for services to start..."
-echo "Waiting 20 seconds for containers to fully initialize..."
-sleep 20
-
-# Check if containers are running
-print_status "Checking container status..."
-docker-compose ps
-
-echo ""
-echo "🧪 Starting Tests..."
-echo "==================="
-
-# Test function with proper JSON escaping
+# Function to test a language
 test_language() {
     local lang=$1
     local code=$2
-    local description=$3
+    local file=$3
+    local emoji=$4
     
-    echo ""
-    print_status "Testing $description..."
+    print_test_header "$lang" "$emoji"
     
-    # Create properly escaped JSON using printf and sed
-    local json_payload=$(printf '{"lang": "%s", "code": "%s"}' "$lang" "$(echo "$code" | sed 's/\\/\\\\/g; s/"/\\"/g')")
+    # Create test file
+    echo "$code" > "$file"
+    print_info "Created test file: $file"
     
-    # Use localhost for WSL (should work with Docker Desktop)
-    response=$(curl -s -X POST http://localhost:5004/execute \
-        -H "Content-Type: application/json" \
-        -d "$json_payload" \
-        --connect-timeout 10 \
-        --max-time 20)
+    # Upload file
+    print_info "Uploading code..."
+    RESPONSE=$(curl -s -F "file=@$file" -F "lang=$lang" http://localhost:5004/upload)
     
-    curl_exit_code=$?
+    if [ $? -ne 0 ]; then
+        print_error "Failed to connect to server"
+        return 1
+    fi
     
-    if [ $curl_exit_code -eq 0 ]; then
-        # Check if response is valid JSON and contains our expected fields
-        if echo "$response" | python3 -m json.tool &> /dev/null; then
-            stdout=$(echo "$response" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('stdout', ''))" 2>/dev/null)
-            stderr=$(echo "$response" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('stderr', ''))" 2>/dev/null)
-            
-            if [ -n "$stdout" ]; then
-                print_success "$description working!"
-                echo "Output: $stdout"
-            elif [ -n "$stderr" ]; then
-                print_warning "$description has errors:"
-                echo "Error: $stderr"
-            else
-                print_error "$description returned empty response"
-                echo "Raw response: $response"
-            fi
-        else
-            print_error "$description returned invalid JSON"
-            echo "Raw response: $response"
-        fi
+    FILE_ID=$(echo $RESPONSE | grep -o '"file_id":"[^"]*' | cut -d'"' -f4)
+    
+    if [ -z "$FILE_ID" ]; then
+        print_error "Failed to upload file"
+        echo -e "${RED}Response: $RESPONSE${NC}"
+        return 1
+    fi
+    
+    print_success "File uploaded successfully (ID: $FILE_ID)"
+    
+    # Execute code
+    print_info "Executing code..."
+    RESULT=$(curl -s http://localhost:5004/execute/$FILE_ID)
+    
+    # Parse output
+    STDOUT=$(echo $RESULT | grep -o '"stdout":"[^"]*' | cut -d'"' -f4)
+    STDERR=$(echo $RESULT | grep -o '"stderr":"[^"]*' | cut -d'"' -f4)
+    
+    # Display output
+    if [ -n "$STDOUT" ]; then
+        print_success "Execution successful!"
+        echo -e "${WHITE}Output:${NC}"
+        echo -e "${GREEN}$STDOUT${NC}" | sed 's/\\n/\n/g'
+    fi
+    
+    if [ -n "$STDERR" ] && [ "$STDERR" != "" ]; then
+        echo -e "${WHITE}Errors:${NC}"
+        echo -e "${RED}$STDERR${NC}" | sed 's/\\n/\n/g'
+    fi
+    
+    # Clean up
+    rm -f "$file"
+}
+
+# Function to check if services are running
+check_services() {
+    print_info "Checking Docker services..."
+    
+    # Check if docker is running
+    if ! docker ps >/dev/null 2>&1; then
+        print_error "Docker is not running!"
+        exit 1
+    fi
+    
+    # Check if router is accessible
+    if curl -s -f http://localhost:5004/upload -X POST >/dev/null 2>&1; then
+        print_success "Router service is running"
     else
-        print_error "$description connection failed! (curl exit code: $curl_exit_code)"
-        if [ $curl_exit_code -eq 7 ]; then
-            echo "Connection refused - check if containers are running and ports are accessible"
-        elif [ $curl_exit_code -eq 28 ]; then
-            echo "Timeout - service might be starting slowly"
-        fi
+        print_error "Router service is not accessible"
+        echo -e "${YELLOW}Run: docker-compose up -d${NC}"
+        exit 1
     fi
 }
 
-# Test Python
-test_language "python" "print('Hello from Python!'); print('Test successful!')" "Python Executor"
+# Main execution
+clear
+print_header
 
-# Test Java with proper escaping
-test_language "java" "public class Test { public static void main(String[] args) { System.out.println(\"Hello from Java!\"); System.out.println(\"Test successful!\"); } }" "Java Executor"
+# Check services
+check_services
+print_separator
+
+# Test Python
+PYTHON_CODE='import sys
+print("Hello from Python!")
+print(f"Python version: {sys.version.split()[0]}")
+for i in range(3):
+    print(f"  Counting: {i + 1}")
+print("Python test complete!")'
+
+test_language "python" "$PYTHON_CODE" "test.py" "$SNAKE"
+sleep 1
+
+print_separator
+
+# Test Java
+JAVA_CODE='public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello from Java!");
+        System.out.println("Java version: " + System.getProperty("java.version"));
+        for (int i = 1; i <= 3; i++) {
+            System.out.println("  Counting: " + i);
+        }
+        System.out.println("Java test complete!");
+    }
+}'
+
+test_language "java" "$JAVA_CODE" "Main.java" "$COFFEE"
+sleep 1
+
+print_separator
 
 # Test Dart
-test_language "dart" "void main() { print('Hello from Dart!'); print('Test successful!'); }" "Dart Executor"
+DART_CODE='import "dart:io";
 
-echo ""
-echo "🔍 Additional Diagnostics..."
-echo "============================"
+void main() {
+  print("Hello from Dart!");
+  print("Dart version: ${Platform.version.split(" ")[0]}");
+  for (int i = 1; i <= 3; i++) {
+    print("  Counting: $i");
+  }
+  print("Dart test complete!");
+}'
 
-# Check individual service health
-print_status "Checking router connectivity..."
+test_language "dart" "$DART_CODE" "test.dart" "$DART"
 
-# Test router health
-curl -s --connect-timeout 5 http://localhost:5004/ > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    print_success "Router is responding on port 5004"
-else
-    print_error "Router is not responding on port 5004"
-    print_status "Checking if port is bound..."
-    netstat -an 2>/dev/null | grep :5004 || echo "Port 5004 not found in netstat"
-fi
+print_separator
 
-# Check logs for errors
-print_status "Checking for errors in logs..."
-error_logs=$(docker-compose logs 2>&1 | grep -E -i "(error|exception|failed)" | head -5)
-if [ -n "$error_logs" ]; then
-    print_warning "Found some errors in logs:"
-    echo "$error_logs"
-else
-    print_success "No obvious errors in logs"
-fi
+# Summary
+echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║${WHITE}                      TEST COMPLETE!                          ${CYAN}║${NC}"
+echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
 
-echo ""
-echo "📋 Test Summary"
-echo "==============="
-print_status "Containers running:"
-docker-compose ps --format "table {{.Name}}\t{{.State}}\t{{.Ports}}" 2>/dev/null || docker-compose ps
-
-echo ""
-print_status "WSL/Docker Desktop Tips:"
-echo "  • If tests fail, try restarting Docker Desktop"
-echo "  • Check Docker Desktop → Settings → Resources → WSL Integration"
-echo "  • Windows Defender Firewall might block Docker ports"
-echo ""
-print_status "Useful commands:"
-echo "  docker-compose logs [service-name]  # View detailed logs"
-echo "  docker-compose down                 # Stop the system"
-echo "  docker-compose up --build          # Rebuild and restart"
-echo ""
-print_success "🎉 Test complete! All systems functional!"
+echo -e "\n${GREEN}${ROCKET} All language executors tested successfully!${NC}"
+echo -e "${YELLOW}${CHECK} Access the web interface at: ${WHITE}http://localhost:5005${NC}\n"
