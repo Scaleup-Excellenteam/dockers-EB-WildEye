@@ -1,10 +1,12 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS 
 import requests
 import os
 import tempfile
 import uuid
 
 app = Flask(__name__)
+CORS(app)
 
 # Store file mappings
 file_storage = {}
