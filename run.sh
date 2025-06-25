@@ -3,7 +3,7 @@
 # Colors based on user preference
 LAVENDER='\033[1;35m'      # A light/bright purple for headers
 DEEP_GREEN='\033[0;32m'     # For success messages
-LIGHT_ORANGE='\033[0;33m'  # For informational messages
+Cyan='\033[0;36m'   # For informational messages
 RED='\033[0;31m'           # Kept for error messages
 WHITE='\033[1;37m'
 NC='\033[0m' # No Color
@@ -35,7 +35,7 @@ print_error() {
 }
 
 print_info() {
-    echo -e "${LIGHT_ORANGE}[INFO] $1${NC}"
+    echo -e "${Cyan}[INFO] $1${NC}"
 }
 
 # Function to test a language
@@ -108,7 +108,7 @@ check_services() {
     
     if [ $RUNNING_CONTAINERS -lt 4 ]; then
         print_error "Not all containers are running!"
-        echo -e "${LIGHT_ORANGE}Run: docker-compose up -d${NC}"
+        echo -e "${Cyan}Run: docker-compose up -d${NC}"
         docker ps
         exit 1
     fi
@@ -118,7 +118,7 @@ check_services() {
         print_success "Router service is accessible on port 5004"
     else
         print_error "Router service is not accessible on port 5004"
-        echo -e "${LIGHT_ORANGE}Waiting a few seconds for services to start...${NC}"
+        echo -e "${Cyan}Waiting a few seconds for services to start...${NC}"
         sleep 3
         
         # Try one more time
@@ -191,4 +191,4 @@ echo -e "${LAVENDER}║${WHITE}                        TEST COMPLETE!           
 echo -e "${LAVENDER}╚══════════════════════════════════════════════════════════════╝${NC}"
 
 echo -e "\n${DEEP_GREEN}All language executors tested successfully!${NC}"
-echo -e "${LIGHT_ORANGE}Access the web interface at: ${WHITE}http://localhost:5005${NC}\n"
+echo -e "${Cyan}Access the web interface at: ${WHITE}http://localhost:5005${NC}\n"
