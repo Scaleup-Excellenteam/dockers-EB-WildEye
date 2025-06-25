@@ -1,52 +1,41 @@
 #!/bin/bash
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
+# Colors based on user preference
+LAVENDER='\033[1;35m'      # A light/bright purple for headers
+DEEP_GREEN='\033[0;32m'     # For success messages
+LIGHT_ORANGE='\033[0;33m'  # For informational messages
+RED='\033[0;31m'           # Kept for error messages
 WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
-# Unicode symbols
-CHECK="✓"
-CROSS="✗"
-ROCKET="🚀"
-SNAKE="🐍"
-COFFEE="☕"
-DART="🎯"
-
 # Function to print colored output
 print_header() {
-    echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${WHITE}                  DOCKER CODE EXECUTOR TEST                   ${CYAN}║${NC}"
-    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}\n"
+    echo -e "\n${LAVENDER}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${LAVENDER}║${WHITE}                 DOCKER CODE EXECUTOR TEST                ${LAVENDER}║${NC}"
+    echo -e "${LAVENDER}╚══════════════════════════════════════════════════════════════╝${NC}\n"
 }
 
 print_separator() {
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${LAVENDER}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
 print_test_header() {
     local lang=$1
-    local emoji=$2
-    echo -e "\n${PURPLE}┌─────────────────────────────────────────────────────────────┐${NC}"
-    echo -e "${PURPLE}│ ${emoji}  Testing ${WHITE}$lang${PURPLE} Executor                                   │${NC}"
-    echo -e "${PURPLE}└─────────────────────────────────────────────────────────────┘${NC}"
+    echo -e "\n${LAVENDER}┌─────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${LAVENDER}│  Testing ${WHITE}$lang${LAVENDER} Executor                                       │${NC}"
+    echo -e "${LAVENDER}└─────────────────────────────────────────────────────────────┘${NC}"
 }
 
 print_success() {
-    echo -e "${GREEN}${CHECK} $1${NC}"
+    echo -e "${DEEP_GREEN}[SUCCESS] $1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}${CROSS} $1${NC}"
+    echo -e "${RED}[ERROR] $1${NC}"
 }
 
 print_info() {
-    echo -e "${YELLOW}➤ $1${NC}"
+    echo -e "${LIGHT_ORANGE}[INFO] $1${NC}"
 }
 
 # Function to test a language
@@ -54,9 +43,8 @@ test_language() {
     local lang=$1
     local code=$2
     local file=$3
-    local emoji=$4
     
-    print_test_header "$lang" "$emoji"
+    print_test_header "$lang"
     
     # Create test file
     echo "$code" > "$file"
@@ -64,7 +52,7 @@ test_language() {
     
     # Upload file
     print_info "Uploading code..."
-    RESPONSE=$(curl -s -F "file=@$file" -F "lang=$lang" http://localhost:5004/upload)
+    RESPONSE=$(curl -s -F "file=@$file" -F "lang=$lang" http://localhost:5004/upload 2>/dev/null)
     
     if [ $? -ne 0 ]; then
         print_error "Failed to connect to server"
@@ -83,7 +71,7 @@ test_language() {
     
     # Execute code
     print_info "Executing code..."
-    RESULT=$(curl -s http://localhost:5004/execute/$FILE_ID)
+    RESULT=$(curl -s http://localhost:5004/execute/$FILE_ID 2>/dev/null)
     
     # Parse output
     STDOUT=$(echo $RESULT | grep -o '"stdout":"[^"]*' | cut -d'"' -f4)
@@ -93,7 +81,7 @@ test_language() {
     if [ -n "$STDOUT" ]; then
         print_success "Execution successful!"
         echo -e "${WHITE}Output:${NC}"
-        echo -e "${GREEN}$STDOUT${NC}" | sed 's/\\n/\n/g'
+        echo -e "${DEEP_GREEN}$STDOUT${NC}" | sed 's/\\n/\n/g'
     fi
     
     if [ -n "$STDERR" ] && [ "$STDERR" != "" ]; then
@@ -115,14 +103,32 @@ check_services() {
         exit 1
     fi
     
-    # Check if router is accessible
-    if curl -s -f http://localhost:5004/upload -X POST >/dev/null 2>&1; then
-        print_success "Router service is running"
-    else
-        print_error "Router service is not accessible"
-        echo -e "${YELLOW}Run: docker-compose up -d${NC}"
+    # Check if containers are running
+    RUNNING_CONTAINERS=$(docker ps --format "table {{.Names}}" | grep -E "(router|python-executor|java-executor|dart-executor)" | wc -l)
+    
+    if [ $RUNNING_CONTAINERS -lt 4 ]; then
+        print_error "Not all containers are running!"
+        echo -e "${LIGHT_ORANGE}Run: docker-compose up -d${NC}"
+        docker ps
         exit 1
     fi
+    
+    # Simple check if router port is accessible
+    if nc -z localhost 5004 2>/dev/null || curl -s http://localhost:5004/upload -X POST 2>&1 | grep -q "No file provided"; then
+        print_success "Router service is accessible on port 5004"
+    else
+        print_error "Router service is not accessible on port 5004"
+        echo -e "${LIGHT_ORANGE}Waiting a few seconds for services to start...${NC}"
+        sleep 3
+        
+        # Try one more time
+        if ! nc -z localhost 5004 2>/dev/null; then
+            print_error "Router still not accessible. Please check the logs."
+            exit 1
+        fi
+    fi
+    
+    print_success "All services appear to be running!"
 }
 
 # Main execution
@@ -141,7 +147,7 @@ for i in range(3):
     print(f"  Counting: {i + 1}")
 print("Python test complete!")'
 
-test_language "python" "$PYTHON_CODE" "test.py" "$SNAKE"
+test_language "python" "$PYTHON_CODE" "test.py"
 sleep 1
 
 print_separator
@@ -158,7 +164,7 @@ JAVA_CODE='public class Main {
     }
 }'
 
-test_language "java" "$JAVA_CODE" "Main.java" "$COFFEE"
+test_language "java" "$JAVA_CODE" "Main.java"
 sleep 1
 
 print_separator
@@ -175,14 +181,14 @@ void main() {
   print("Dart test complete!");
 }'
 
-test_language "dart" "$DART_CODE" "test.dart" "$DART"
+test_language "dart" "$DART_CODE" "test.dart"
 
 print_separator
 
 # Summary
-echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║${WHITE}                      TEST COMPLETE!                          ${CYAN}║${NC}"
-echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo -e "\n${LAVENDER}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${LAVENDER}║${WHITE}                        TEST COMPLETE!                      ${LAVENDER}║${NC}"
+echo -e "${LAVENDER}╚══════════════════════════════════════════════════════════════╝${NC}"
 
-echo -e "\n${GREEN}${ROCKET} All language executors tested successfully!${NC}"
-echo -e "${YELLOW}${CHECK} Access the web interface at: ${WHITE}http://localhost:5005${NC}\n"
+echo -e "\n${DEEP_GREEN}All language executors tested successfully!${NC}"
+echo -e "${LIGHT_ORANGE}Access the web interface at: ${WHITE}http://localhost:5005${NC}\n"
