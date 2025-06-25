@@ -1,13 +1,13 @@
-FROM dart:stable
+FROM alpine:3.18
 
-# Install Python and Flask using the system package manager
-RUN apt-get update && \
-    apt-get install -y python3 python3-flask
-
-# Copy the Flask application
-COPY app.py /app/
+RUN apk add --no-cache bash curl python3 py3-pip
+RUN curl -o /tmp/dart.zip https://storage.googleapis.com/dart-archive/channels/stable/release/latest/sdk/dartsdk-linux-x64-release.zip && \
+    unzip /tmp/dart.zip -d /opt && \
+    rm /tmp/dart.zip
+ENV PATH="/opt/dart-sdk/bin:${PATH}"
 WORKDIR /app
-
-# Expose the port and run the application
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+COPY app.py .
 EXPOSE 5003
 CMD ["python3", "app.py"]
